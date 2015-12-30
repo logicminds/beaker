@@ -481,12 +481,14 @@ module Beaker
         rsync_args << "-e \"ssh #{ssh_args.join(' ')}\""
       end
 
-      if opts.has_key?(:ignore) and not opts[:ignore].empty?
-        opts[:ignore].map! do |value|
+      # remove the ignore values from the opts so we can futher process other options
+      # transform to array, even when value is nil, empty array still gets returned
+      ignored_dirs = Array(opts.delete(:ignore))
+      excluded_dirs = ignored_dirs.map! do |value|
           "--exclude '#{value}'"
-        end
-        rsync_args << opts[:ignore].join(' ')
       end
+      # each ignored dir will become --exclude dir1 --exclude dir2 as unique arguments
+      rsync_args += excluded_dirs
 
       # We assume that the *contents* of the directory 'from_path' needs to be
       # copied into the directory 'to_path'
