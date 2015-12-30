@@ -623,14 +623,17 @@ module Beaker
         [ 'source', 'target', {:ignore => ['.bundle']} ]
       end
 
-      it 'do_rsync_to logs info and call Rsync class' do
-        logger = host[:logger]
+      let(:key) do
         key = host['ssh']['keys']
         if key.is_a? Array
           key = key.first
         end
+        key
+      end
 
-        rsync_args = [ 'source', 'target', ['-az', "-e \"ssh -i #{key} -p 22 -o 'StrictHostKeyChecking no'\"", "--exclude '.bundle'"] ]
+      it 'do_rsync_to logs info and call Rsync class' do
+        logger = host[:logger]
+        rsync_args = [ 'source', 'target', ["-e \"ssh -i #{key} -p 22 -o 'StrictHostKeyChecking no'\"", "--exclude '.bundle'", '-az'] ]
         expect( host ).to receive(:reachable_name).and_return('default.ip.address')
         expect( Rsync ).to receive(:run).with( *rsync_args ).and_return(Beaker::Result.new(host, 'output!'))
         host.do_rsync_to *args
@@ -641,6 +644,56 @@ module Beaker
         expect { host.do_rsync_to "/does/not/exist", "does/not/exist/over/there", {} }.to raise_error(IOError)
       end
 
+      context 'rsync options' do
+        let(:args) do
+          [ 'source', 'target', rsync_opts]
+        end
+
+        context 'multiple options' do
+          let(:rsync_opts) do
+            {
+              '--stats' => nil,
+              '--list-only' => nil,
+              '--timeout' => '59',
+              '--max-size' => '123'
+            }
+          end
+
+          it 'returns correct options' do
+            rsync_args = [ 'source', 'target', ["-e \"ssh -i #{key} -p 22 -o 'StrictHostKeyChecking no'\"", '--stats', '--list-only', '--timeout=59', '--max-size=123', '-az'] ]
+            expect(Rsync).to receive(:run).with(*rsync_args).and_return(Beaker::Result.new(host, 'output!'))
+            expect(host.do_rsync_to(*args).cmd).to eq('output!')
+          end
+        end
+
+        context 'when exclude is passed in' do
+          let(:rsync_opts) do
+            {
+              '--exclude' => '/tmp/test',
+              :ignore => '/tmp/test2'
+            }
+          end
+          it 'returns correct options' do
+            rsync_args = [ 'source', 'target', ["-e \"ssh -i #{key} -p 22 -o 'StrictHostKeyChecking no'\"", "--exclude '/tmp/test2'", '--exclude=/tmp/test', '-az'] ]
+            expect(Rsync).to receive(:run).with(*rsync_args).and_return(Beaker::Result.new(host, 'output!'))
+            expect(host.do_rsync_to(*args).cmd).to eq('output!')
+          end
+        end
+
+        context 'when -az is passed in' do
+          let(:rsync_opts) do
+            {
+             '-az' => nil
+            }
+          end
+          it 'returns correct options' do
+            rsync_args = [ 'source', 'target', ["-e \"ssh -i #{key} -p 22 -o 'StrictHostKeyChecking no'\"", '-az'] ]
+            expect(Rsync).to receive(:run).with(*rsync_args).and_return(Beaker::Result.new(host, 'output!'))
+            expect(host.do_rsync_to(*args).cmd).to eq('output!')
+          end
+        end
+
+      end
       context 'ssh config file' do
         let(:options) do
           {'ssh' => {:config => '/var/folders/v0/centos-64-x6420150625-48025-lu3u86'}}
@@ -654,13 +707,13 @@ module Beaker
           # since were using fakefs we need to create the file and directories
           FileUtils.mkdir_p('/var/folders/v0/')
           FileUtils.touch('/var/folders/v0/centos-64-x6420150625-48025-lu3u86')
-          rsync_args = [ 'source', 'target', ['-az', "-e \"ssh -F /var/folders/v0/centos-64-x6420150625-48025-lu3u86 -o 'StrictHostKeyChecking no'\"", "--exclude '.bundle'"] ]
+          rsync_args = [ 'source', 'target', [ "-e \"ssh -F /var/folders/v0/centos-64-x6420150625-48025-lu3u86 -o 'StrictHostKeyChecking no'\"", "--exclude '.bundle'", '-az'] ]
           expect(Rsync).to receive(:run).with(*rsync_args).and_return(Beaker::Result.new(host, 'output!'))
           expect(host.do_rsync_to(*args).cmd).to eq('output!')
         end
 
         it 'does not use the ssh config file when config does not exist' do
-          rsync_args = [ 'source', 'target', ['-az', "-e \"ssh -o 'StrictHostKeyChecking no'\"", "--exclude '.bundle'"] ]
+          rsync_args = [ 'source', 'target', ["-e \"ssh -o 'StrictHostKeyChecking no'\"", "--exclude '.bundle'", '-az'] ]
           expect(Rsync).to receive(:run).with(*rsync_args).and_return(Beaker::Result.new(host, 'output!'))
           expect(host.do_rsync_to(*args).cmd).to eq('output!')
         end
@@ -670,7 +723,7 @@ module Beaker
             [ 'source', 'target', {:ignore => ['.bundle', '/tmp/test']} ]
           end
           it 'creates proper exclude paths' do
-            rsync_args = [ 'source', 'target', ['-az', "-e \"ssh -o 'StrictHostKeyChecking no'\"", "--exclude '.bundle'", "--exclude '/tmp/test'"] ]
+            rsync_args = [ 'source', 'target', ["-e \"ssh -o 'StrictHostKeyChecking no'\"", "--exclude '.bundle'", "--exclude '/tmp/test'", '-az'] ]
             expect(Rsync).to receive(:run).with(*rsync_args).and_return(Beaker::Result.new(host, 'output!'))
             expect(host.do_rsync_to(*args).cmd).to eq('output!')
           end
@@ -680,7 +733,7 @@ module Beaker
               [ 'source', 'target' ]
             end
             it 'does not create exclude paths' do
-              rsync_args = [ 'source', 'target', ['-az', "-e \"ssh -o 'StrictHostKeyChecking no'\""] ]
+              rsync_args = [ 'source', 'target', ["-e \"ssh -o 'StrictHostKeyChecking no'\"", '-az'] ]
               expect(Rsync).to receive(:run).with(*rsync_args).and_return(Beaker::Result.new(host, 'output!'))
               expect(host.do_rsync_to(*args).cmd).to eq('output!')
             end

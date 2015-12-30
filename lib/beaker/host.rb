@@ -425,6 +425,8 @@ module Beaker
     # @param to_path [String] The destination path on the host
     # @param opts [Hash{Symbol=>String}] Options to alter execution
     # @option opts [Array<String>] :ignore An array of file/dir paths that will not be copied to the host
+    # When passing rsync options you must also supply the '-' or '--' like you would on the command line
+    # ex.  {'--force' => nil, '-n' => nil, '--compare-dest' => '/tmp/compare_dest'}
     def do_rsync_to from_path, to_path, opts = {}
       ssh_opts = self['ssh']
       rsync_args = []
@@ -435,7 +437,7 @@ module Beaker
       end
 
       # We enable achieve mode and compression
-      rsync_args << "-az"
+      opts['-az'] = nil
 
       if not self['user']
         user = "root"
@@ -490,6 +492,16 @@ module Beaker
       # each ignored dir will become --exclude dir1 --exclude dir2 as unique arguments
       rsync_args += excluded_dirs
 
+      # if the user supplied additional rsync options lets pass them in as flags
+      # for rsync options like '--force' we don't need the equal sign
+      # for rsync options like '--compress-level=NUM' we need to transform to flag=value
+      rsync_args += opts.map do |flag, value|
+        if value.nil? or value.empty?
+          flag
+        else
+          "#{flag}=#{value}"
+        end
+      end
       # We assume that the *contents* of the directory 'from_path' needs to be
       # copied into the directory 'to_path'
       if File.directory?(from_path) and not from_path.end_with?('/')
