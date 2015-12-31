@@ -538,6 +538,15 @@ module Beaker
             end
           end
         end
+
+        def rsync_fixtures(host, fixtures_module_path, opts={}, dest='/etc/puppet/modules')
+          opts['--copy-links'] = nil
+          unless File.exists?(fixtures_modules_path)
+            logger.debug("The path #{fxtures_modules_path} does not exist")
+          end
+          rsync_to(host ,fixtures_module_path, dest, opts)
+        end
+
       end
     end
   end
